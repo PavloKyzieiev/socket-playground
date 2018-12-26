@@ -1,0 +1,42 @@
+body {
+  margin: 0;
+  padding: 10px;
+}
+
+.form-group {
+  display: inline-block;
+  margin-right: 15px;
+  width: 200px;
+}
+
+.form-group label, .form-group input {
+  display: block;
+  width: 100%;
+}
+.console-wrap {
+  padding: 10px;
+}
+.console {
+  margin: 0;
+  font-size: 14px;
+}
+
+.instruments {
+  padding: 5px 5px 5px 0;
+}
+
+.instruments button {
+  margin: 5px;
+  border: 0;
+  outline: none;
+  padding: 5px 10px;
+}
+
+.instruments button.active {
+  background-color: green;
+  color: #fff;
+}
+
+.instruments button:first-child {
+  margin-left: 0;
+}
