@@ -1,9 +1,10 @@
 import React from "react";
+import qs from 'query-string';
 
 class App extends React.Component {
   state = {
     storageUrl: localStorage.getItem("storageUrl") || "",
-    authToken: localStorage.getItem("authToken") || "",
+    authToken: qs.parse(window.location.search).user || localStorage.getItem("authToken") || "",
     authorized: false,
     loading: false,
     socket: null,
@@ -22,7 +23,6 @@ class App extends React.Component {
     const { authorized, storageUrl } = this.state;
     let { socket } = this.state;
     if (!authorized) {
-
       try {
         socket = new WebSocket(storageUrl);
       } catch (e) {
@@ -152,15 +152,14 @@ class App extends React.Component {
     );
     return (
       <div>
-
         <div className="form-group">
-          <label>Ендпоінт (ws[s]://...)</label>
+          <label>Ендпоинт (ws[s]://...)</label>
           <input
             value={this.state.storageUrl}
             onChange={e => this.handleInputChange(e, "storageUrl")}
           />
         </div>
-        
+
         <div className="form-group">
           <label>Токен</label>
           <input
