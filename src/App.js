@@ -1,16 +1,12 @@
 import React from "react";
-import qs from 'query-string';
 
 class App extends React.Component {
   state = {
     storageUrl: localStorage.getItem("storageUrl") || "",
-    authToken: qs.parse(window.location.search).user || localStorage.getItem("authToken") || "",
     authorized: false,
     loading: false,
     socket: null,
-    consoleData: [],
-    instruments: [],
-    activeInstrument: null
+    consoleData: []
   };
 
   handleInputChange = (event, key) => {
@@ -43,7 +39,7 @@ class App extends React.Component {
   }
 
   initWebSocket = () => {
-    let { socket, authToken } = this.state;
+    let { socket } = this.state;
 
     socket.onopen = () => {
       this.setState(prevState => ({
@@ -51,7 +47,7 @@ class App extends React.Component {
         consoleData: [...prevState.consoleData, "Соединение установлено."]
       }));
 
-      socket.send(JSON.stringify({ name: "auth", authToken }));
+      this.request(JSON.stringify({ user: { userId: 666 } }));
     };
 
     socket.onclose = event => {
@@ -74,30 +70,17 @@ class App extends React.Component {
     };
 
     socket.onmessage = message => {
-      const { name, status, instruments, order } = JSON.parse(message.data);
+      const { type } = JSON.parse(message.data);
 
       let { authorized } = this.state;
 
-      switch (name) {
-        case "authRequest": {
-          if (status === "OK") {
-            authorized = true;
-            socket.send(JSON.stringify({ name: "instruments" }));
-          } else {
-            authorized = false;
-          }
+      switch (type) {
+        case 0: {
+          authorized = true;
           break;
         }
-        case "instruments": {
-          if (status === "OK") {
-            this.setState(prevState => ({ ...prevState, instruments }));
-          }
-          break;
-        }
-        case "order": {
-          if (status === "OK") {
-            this.setState(prevState => ({ ...prevState, order }));
-          }
+        case 1: {
+          authorized = false;
           break;
         }
 
@@ -109,7 +92,10 @@ class App extends React.Component {
 
       this.setState(prevState => ({
         ...prevState,
-        consoleData: [...prevState.consoleData, message.data],
+        consoleData: [
+          ...prevState.consoleData,
+          "response ->   " + message.data
+        ],
         authorized,
         loading: false,
         socket
@@ -127,22 +113,28 @@ class App extends React.Component {
     };
   };
 
+  request = body => {
+    const { socket } = this.state;
+    socket.send(body);
+    this.setState(prevState => ({
+      ...prevState,
+      consoleData: [...prevState.consoleData, "request ->   " + body]
+    }));
+  };
+
   subscribe = brokerId => {
-    const { socket, activeInstrument } = this.state;
-    if (activeInstrument !== brokerId) {
-      socket.send(JSON.stringify({ name: "subscribe", brokerId }));
-      this.setState({ activeInstrument: brokerId });
-    }
+    if (brokerId === "default") brokerId = 666;
+
+    this.request(
+      JSON.stringify({
+        type: 1,
+        sub: [{ rec: { brk: brokerId, acc: 666 }, sym: ["EURUSD", "USDJPY"] }]
+      })
+    );
   };
 
   render() {
-    var {
-      authorized,
-      consoleData,
-      loading,
-      instruments,
-      activeInstrument
-    } = this.state;
+    var { authorized, consoleData, loading } = this.state;
     const button = loading ? (
       <span>Loading</span>
     ) : (
@@ -152,36 +144,23 @@ class App extends React.Component {
     );
     return (
       <div>
-        <div className="form-group">
-          <label>Ендпоинт (ws[s]://...)</label>
-          <input
-            value={this.state.storageUrl}
-            onChange={e => this.handleInputChange(e, "storageUrl")}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Токен</label>
-          <input
-            value={this.state.authToken}
-            onChange={e => this.handleInputChange(e, "authToken")}
-          />
-        </div>
-        {button}
-
-        {instruments.length ? (
-          <div className="instruments">
-            {instruments.map((el, index) => (
-              <button
-                key={index}
-                className={activeInstrument === el.id ? "active" : ""}
-                onClick={() => this.subscribe(el.id)}
-              >
-                {el.name}
-              </button>
-            ))}
+        <div className="control">
+          <div className="form-group">
+            <label>Ендпоинт (ws[s]://...)</label>
+            <input
+              value={this.state.storageUrl}
+              onChange={e => this.handleInputChange(e, "storageUrl")}
+            />
           </div>
-        ) : null}
+
+          {button}
+        </div>
+
+        {authorized && (
+          <div>
+            <button onClick={() => this.subscribe("default")}>Subscribe</button>
+          </div>
+        )}
 
         {consoleData.length ? (
           <div className="console-wrap">

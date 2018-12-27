@@ -4,14 +4,34 @@ body {
   margin: 0;
   padding: 10px;
   font-family: 'Roboto', sans-serif;
+  min-height: 100vh;
+  background-color: rgba(0,0,0,.2);
 }
 
 .form-group {
   display: inline-block;
   margin-right: 15px;
-  width: 200px;
+  width: 500px;
 }
-
+.form-group label {
+  margin-bottom: 10px;
+}
+.form-group input {
+  padding: 4px 10px;
+  box-sizing: border-box;
+}
+.control {
+  background-color: #fff;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.console-wrap {
+  max-height: 500px;
+  overflow-y: scroll;
+  padding: 10px;
+  background-color: #fff;
+  margin-top: 10px;
+}
 .form-group label, .form-group input {
   display: block;
   width: 100%;
