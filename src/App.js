@@ -1,12 +1,18 @@
 import React from "react";
 
+import protobuf from "protobufjs";
+
 class App extends React.Component {
   state = {
     storageUrl: localStorage.getItem("storageUrl") || "",
+    userId: localStorage.getItem("userId") || "",
+    broker: localStorage.getItem("broker") || "",
+    account: localStorage.getItem("account") || "",
     authorized: false,
     loading: false,
     socket: null,
-    consoleData: []
+    consoleData: [],
+    protoQuotes: null
   };
 
   handleInputChange = (event, key) => {
@@ -16,11 +22,12 @@ class App extends React.Component {
   };
 
   handleConnectButtonClick = () => {
-    const { authorized, storageUrl } = this.state;
+    const { authorized, storageUrl, userId } = this.state;
     let { socket } = this.state;
     if (!authorized) {
       try {
-        socket = new WebSocket(storageUrl);
+        socket = new WebSocket(storageUrl.split("?")[0] + "?user=" + userId);
+        socket.binaryType = "arraybuffer";
       } catch (e) {
         return this.setState({ consoleData: [e.message] });
       }
@@ -33,9 +40,21 @@ class App extends React.Component {
   };
 
   componentDidUpdate(prevProps, prevState) {
+    console.timeEnd("Buff")
     if (!prevState.socket && this.state.socket) {
       this.initWebSocket();
     }
+  }
+
+  componentDidMount() {
+    protobuf.load("/proto/awesome.proto").then(root => {
+      var protoQuotes = root.lookupType("protobuf.quotes.Quote");
+
+      this.setState(prevState => ({
+        ...prevState,
+        protoQuotes
+      }));
+    });
   }
 
   initWebSocket = () => {
@@ -69,10 +88,20 @@ class App extends React.Component {
       }));
     };
 
-    socket.onmessage = message => {
-      const { type } = JSON.parse(message.data);
+    socket.onmessage = async message => {
+      let data;
 
-      let { authorized } = this.state;
+      let { authorized, protoQuotes } = this.state;
+
+      if (typeof message.data !== "string") {
+        console.time("Buff")
+        var bytearray = new Uint8Array(message.data);
+        data = protoQuotes.decode(bytearray);
+      } else {
+        data = JSON.parse(message.data);
+      }
+
+      const { type } = data;
 
       switch (type) {
         case 0: {
@@ -83,19 +112,16 @@ class App extends React.Component {
           authorized = false;
           break;
         }
-
-        default:
+        default: {
           break;
+        }
       }
 
       if (!authorized) socket = null;
 
       this.setState(prevState => ({
         ...prevState,
-        consoleData: [
-          ...prevState.consoleData,
-          "response ->   " + message.data
-        ],
+        consoleData: [JSON.stringify(data)],
         authorized,
         loading: false,
         socket
@@ -116,13 +142,14 @@ class App extends React.Component {
   request = body => {
     const { socket } = this.state;
     socket.send(body);
+
     this.setState(prevState => ({
       ...prevState,
       consoleData: [...prevState.consoleData, "request ->   " + body]
     }));
   };
 
-  subscribe = brokerId => {
+  subscribe = ({ brokerId }) => {
     if (brokerId === "default") brokerId = 666;
 
     this.request(
@@ -130,6 +157,24 @@ class App extends React.Component {
         type: 1,
         sub: [{ rec: { brk: brokerId, acc: 666 }, sym: ["EURUSD", "USDJPY"] }]
       })
+    );
+  };
+
+  unsubscribe = ({ brokerId }) => {
+    if (brokerId === "default") brokerId = 666;
+
+    this.request(
+      JSON.stringify({
+        type: 1,
+        sub: [{ rec: { brk: brokerId, acc: 666 }, sym: [] }]
+      })
+    );
+  };
+
+  getInstruments = () => {
+    const { broker, account, socket } = this.state;
+    socket.send(
+      JSON.stringify({ type: 2, rec: { brk: broker, acc: account } })
     );
   };
 
@@ -145,21 +190,50 @@ class App extends React.Component {
     return (
       <div>
         <div className="control">
-          <div className="form-group">
-            <label>Ендпоинт (ws[s]://...)</label>
-            <input
-              value={this.state.storageUrl}
-              onChange={e => this.handleInputChange(e, "storageUrl")}
-            />
+          <div>
+            <div className="form-group">
+              <label>Ендпоинт (ws[s]://...)</label>
+              <input
+                value={this.state.storageUrl}
+                onChange={e => this.handleInputChange(e, "storageUrl")}
+              />
+            </div>
+            <div className="form-group">
+              <label>Юзер</label>
+              <input
+                value={this.state.userId}
+                onChange={e => this.handleInputChange(e, "userId")}
+              />
+            </div>
           </div>
+          {authorized && (
+            <div>
+              <div className="form-group">
+                <label>Брокер</label>
+                <input
+                  value={this.state.broker}
+                  onChange={e => this.handleInputChange(e, "broker")}
+                />
+              </div>
+              <div className="form-group">
+                <label>Аккаунт</label>
+                <input
+                  value={this.state.account}
+                  onChange={e => this.handleInputChange(e, "account")}
+                />
+              </div>
+            </div>
+          )}
 
           {button}
         </div>
 
         {authorized && (
           <div>
-            <button onClick={() => this.subscribe("default")}>Subscribe</button>
+            <button onClick={this.getInstruments}>Get Instruments</button>
+            <button onClick={() => this.subscribe({brokerId: "default"})}>Subscribe</button>
           </div>
+          
         )}
 
         {consoleData.length ? (
