@@ -40,10 +40,6 @@ body {
 .console-wrap {
   padding: 10px;
 }
-.console {
-  margin: 0;
-  font-size: 14px;
-}
 
 .instruments {
   padding: 5px 5px 5px 0;
@@ -67,4 +63,18 @@ input {
 
 .instruments button:first-child {
   margin-left: 0;
+}
+
+.body_wrap {
+  display: flex;
+  justify-content: space-between;
+}
+.console {
+  width: 40%;
+  padding: 10px;
+  font-size: 14px;
+}
+
+.console p {
+  margin: 0;
 }

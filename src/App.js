@@ -14,7 +14,8 @@ class App extends React.Component {
     consoleData: [],
     protoQuotes: null,
     instruments: [],
-    consoleContainer: React.createRef()
+    consoleContainer: React.createRef(),
+    currentMarket: {}
   };
 
   handleInputChange = (event, key) => {
@@ -99,11 +100,12 @@ class App extends React.Component {
     socket.onmessage = async message => {
       let data;
 
-      let { authorized, protoQuotes, instruments } = this.state;
+      let { authorized, protoQuotes, instruments, currentMarket } = this.state;
 
       if (typeof message.data !== "string") {
         var bytearray = new Uint8Array(message.data);
         data = protoQuotes.decode(bytearray);
+        currentMarket = data;
       } else {
         data = JSON.parse(message.data);
       }
@@ -132,11 +134,12 @@ class App extends React.Component {
 
       this.setState(prevState => ({
         ...prevState,
-        consoleData: [...prevState.consoleData, JSON.stringify(data)],
+        consoleData: [JSON.stringify(data)],
         authorized,
         loading: false,
         socket,
-        instruments
+        instruments,
+        currentMarket
       }));
     };
 
@@ -172,16 +175,6 @@ class App extends React.Component {
     );
   };
 
-  unsubscribe = () => {
-    const { broker, account } = this.state;
-    this.request(
-      JSON.stringify({
-        type: 1,
-        sub: [{ rec: { brk: broker, acc: account }, sym: [] }]
-      })
-    );
-  };
-
   getInstruments = () => {
     const { broker, account, socket } = this.state;
     socket.send(
@@ -194,7 +187,13 @@ class App extends React.Component {
   };
 
   render() {
-    var { authorized, consoleData, loading, instruments } = this.state;
+    var {
+      authorized,
+      consoleData,
+      loading,
+      instruments,
+      currentMarket
+    } = this.state;
     const button = loading ? (
       <span>Loading</span>
     ) : (
@@ -246,7 +245,6 @@ class App extends React.Component {
         {authorized && (
           <div>
             <button onClick={this.getInstruments}>Get Instruments</button>
-            <button onClick={this.unsubscribe}>Unsubscribe</button>
           </div>
         )}
 
@@ -258,18 +256,31 @@ class App extends React.Component {
 
         <hr />
 
-        {consoleData.length ? (
-          <>
-            <button onClick={this.clearConsole}>Clear</button>
-            <div className="console-wrap" ref={this.state.consoleContainer}>
-              {consoleData.map((el, index) => (
-                <p className="console" key={index}>
-                  {el}
-                </p>
-              ))}
+        <div className="body_wrap">
+          <div className="trading">
+            <ul>
+              <li>
+                <b>instrument:</b> {currentMarket.instrumentId}
+              </li>
+              <li>
+                <b>bid:</b> {currentMarket.bid}, <b>ask:</b> {currentMarket.ask}
+              </li>
+              <li>
+                <b>time:</b> {currentMarket.time}
+              </li>
+            </ul>
+          </div>
+          {consoleData.length ? (
+            <div className="console">
+              <button onClick={this.clearConsole}>Clear</button>
+              <div className="console-wrap" ref={this.state.consoleContainer}>
+                {consoleData.map((el, index) => (
+                  <p key={index}>{el}</p>
+                ))}
+              </div>
             </div>
-          </>
-        ) : null}
+          ) : null}
+        </div>
       </div>
     );
   }
