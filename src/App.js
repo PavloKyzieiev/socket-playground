@@ -12,7 +12,9 @@ class App extends React.Component {
     loading: false,
     socket: null,
     consoleData: [],
-    protoQuotes: null
+    protoQuotes: null,
+    instruments: [],
+    consoleContainer: React.createRef()
   };
 
   handleInputChange = (event, key) => {
@@ -40,7 +42,13 @@ class App extends React.Component {
   };
 
   componentDidUpdate(prevProps, prevState) {
-    console.timeEnd("Buff")
+    const { consoleContainer } = this.state;
+
+    if (consoleContainer.current) {
+      consoleContainer.current.scrollTop =
+        consoleContainer.current.scrollHeight;
+    }
+
     if (!prevState.socket && this.state.socket) {
       this.initWebSocket();
     }
@@ -91,10 +99,9 @@ class App extends React.Component {
     socket.onmessage = async message => {
       let data;
 
-      let { authorized, protoQuotes } = this.state;
+      let { authorized, protoQuotes, instruments } = this.state;
 
       if (typeof message.data !== "string") {
-        console.time("Buff")
         var bytearray = new Uint8Array(message.data);
         data = protoQuotes.decode(bytearray);
       } else {
@@ -112,6 +119,10 @@ class App extends React.Component {
           authorized = false;
           break;
         }
+        case 7: {
+          instruments = data.instruments;
+          break;
+        }
         default: {
           break;
         }
@@ -121,10 +132,11 @@ class App extends React.Component {
 
       this.setState(prevState => ({
         ...prevState,
-        consoleData: [JSON.stringify(data)],
+        consoleData: [...prevState.consoleData, JSON.stringify(data)],
         authorized,
         loading: false,
-        socket
+        socket,
+        instruments
       }));
     };
 
@@ -149,24 +161,23 @@ class App extends React.Component {
     }));
   };
 
-  subscribe = ({ brokerId }) => {
-    if (brokerId === "default") brokerId = 666;
+  subscribe = ({ sym }) => {
+    const { broker, account } = this.state;
 
     this.request(
       JSON.stringify({
         type: 1,
-        sub: [{ rec: { brk: brokerId, acc: 666 }, sym: ["EURUSD", "USDJPY"] }]
+        sub: [{ rec: { brk: broker, acc: account }, sym: [sym] }]
       })
     );
   };
 
-  unsubscribe = ({ brokerId }) => {
-    if (brokerId === "default") brokerId = 666;
-
+  unsubscribe = () => {
+    const { broker, account } = this.state;
     this.request(
       JSON.stringify({
         type: 1,
-        sub: [{ rec: { brk: brokerId, acc: 666 }, sym: [] }]
+        sub: [{ rec: { brk: broker, acc: account }, sym: [] }]
       })
     );
   };
@@ -178,8 +189,12 @@ class App extends React.Component {
     );
   };
 
+  clearConsole = () => {
+    this.setState({ consoleData: [] });
+  };
+
   render() {
-    var { authorized, consoleData, loading } = this.state;
+    var { authorized, consoleData, loading, instruments } = this.state;
     const button = loading ? (
       <span>Loading</span>
     ) : (
@@ -231,22 +246,29 @@ class App extends React.Component {
         {authorized && (
           <div>
             <button onClick={this.getInstruments}>Get Instruments</button>
-            <button onClick={() => this.subscribe({brokerId: "default"})}>Subscribe</button>
+            <button onClick={this.unsubscribe}>Unsubscribe</button>
           </div>
-          
         )}
 
+        {instruments.map((el, i) => (
+          <button key={i} onClick={() => this.subscribe({ sym: el.sym })}>
+            {el.sym}
+          </button>
+        ))}
+
+        <hr />
+
         {consoleData.length ? (
-          <div className="console-wrap">
-            <button onClick={() => this.setState({ consoleData: [] })}>
-              Clear
-            </button>
-            {consoleData.map((el, index) => (
-              <p className="console" key={index}>
-                {el}
-              </p>
-            ))}
-          </div>
+          <>
+            <button onClick={this.clearConsole}>Clear</button>
+            <div className="console-wrap" ref={this.state.consoleContainer}>
+              {consoleData.map((el, index) => (
+                <p className="console" key={index}>
+                  {el}
+                </p>
+              ))}
+            </div>
+          </>
         ) : null}
       </div>
     );
