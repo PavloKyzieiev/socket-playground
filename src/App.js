@@ -15,7 +15,8 @@ class App extends React.Component {
     protoQuotes: null,
     instruments: [],
     consoleContainer: React.createRef(),
-    currentMarket: {}
+    markets: {},
+    selectedInstruments: []
   };
 
   handleInputChange = (event, key) => {
@@ -42,9 +43,13 @@ class App extends React.Component {
     }
   };
 
+  componentWillUpdate() {
+    console.time()
+  }
+
   componentDidUpdate(prevProps, prevState) {
     const { consoleContainer } = this.state;
-
+    console.timeEnd()
     if (consoleContainer.current) {
       consoleContainer.current.scrollTop =
         consoleContainer.current.scrollHeight;
@@ -58,7 +63,6 @@ class App extends React.Component {
   componentDidMount() {
     protobuf.load("/proto/awesome.proto").then(root => {
       var protoQuotes = root.lookupType("protobuf.quotes.Quote");
-
       this.setState(prevState => ({
         ...prevState,
         protoQuotes
@@ -100,12 +104,18 @@ class App extends React.Component {
     socket.onmessage = async message => {
       let data;
 
-      let { authorized, protoQuotes, instruments, currentMarket } = this.state;
+      let {
+        authorized,
+        protoQuotes,
+        instruments,
+        currentMarket,
+        markets
+      } = this.state;
 
       if (typeof message.data !== "string") {
         var bytearray = new Uint8Array(message.data);
         data = protoQuotes.decode(bytearray);
-        currentMarket = data;
+        markets[data.instrumentId] = data;
       } else {
         data = JSON.parse(message.data);
       }
@@ -139,7 +149,8 @@ class App extends React.Component {
         loading: false,
         socket,
         instruments,
-        currentMarket
+        currentMarket,
+        markets
       }));
     };
 
@@ -164,13 +175,26 @@ class App extends React.Component {
     }));
   };
 
-  subscribe = ({ sym }) => {
-    const { broker, account } = this.state;
+  checkInstrument = ({ sym }) => {
+    let { broker, account, markets } = this.state;
+
+    let marketsObj = { ...markets };
+    let syms = [];
+
+    if (marketsObj[sym]) {
+      delete marketsObj[sym];
+    } else {
+      marketsObj[sym] = {};
+    }
+
+    Object.keys(marketsObj).forEach(el => syms.push(el));
+
+    this.setState({ markets: marketsObj });
 
     this.request(
       JSON.stringify({
         type: 1,
-        sub: [{ rec: { brk: broker, acc: account }, sym: [sym] }]
+        sub: [{ rec: { brk: broker, acc: account }, sym: syms }]
       })
     );
   };
@@ -187,13 +211,7 @@ class App extends React.Component {
   };
 
   render() {
-    var {
-      authorized,
-      consoleData,
-      loading,
-      instruments,
-      currentMarket
-    } = this.state;
+    var { authorized, consoleData, loading, instruments, markets } = this.state;
     const button = loading ? (
       <span>Loading</span>
     ) : (
@@ -249,7 +267,7 @@ class App extends React.Component {
         )}
 
         {instruments.map((el, i) => (
-          <button key={i} onClick={() => this.subscribe({ sym: el.sym })}>
+          <button key={i} onClick={() => this.checkInstrument({ sym: el.sym })}>
             {el.sym}
           </button>
         ))}
@@ -257,18 +275,24 @@ class App extends React.Component {
         <hr />
 
         <div className="body_wrap">
-          <div className="trading">
-            <ul>
-              <li>
-                <b>instrument:</b> {currentMarket.instrumentId}
-              </li>
-              <li>
-                <b>bid:</b> {currentMarket.bid}, <b>ask:</b> {currentMarket.ask}
-              </li>
-              <li>
-                <b>time:</b> {currentMarket.time}
-              </li>
-            </ul>
+          <div className="trading_wrap">
+            {Object.keys(markets).map(key => {
+              return (
+                <div key={key} className="trading">
+                  <ul>
+                    <li>
+                      <b>instrument:</b> {markets[key].instrumentId}
+                    </li>
+                    <li>
+                      <b>bid:</b> {markets[key].bid}, <b>ask:</b> {markets[key].ask}
+                    </li>
+                    <li>
+                      <b>time:</b> {markets[key].time}
+                    </li>
+                  </ul>
+                </div>
+              );
+            })}
           </div>
           {consoleData.length ? (
             <div className="console">
