@@ -41,8 +41,19 @@ body {
   padding: 10px;
 }
 
+.trading {
+  display: inline-block;
+  width: 240px;
+  vertical-align: top;
+}
+
 .instruments {
   padding: 5px 5px 5px 0;
+}
+
+.active {
+  background-color: green;
+  color: #fff;
 }
 
 .instruments button {
@@ -65,10 +76,6 @@ input {
   margin-left: 0;
 }
 
-.body_wrap {
-  display: flex;
-  justify-content: space-between;
-}
 .console {
   width: 40%;
   padding: 10px;

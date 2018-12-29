@@ -11,7 +11,6 @@ class App extends React.Component {
     authorized: false,
     loading: false,
     socket: null,
-    consoleData: [],
     protoQuotes: null,
     instruments: [],
     consoleContainer: React.createRef(),
@@ -33,7 +32,7 @@ class App extends React.Component {
         socket = new WebSocket(storageUrl.split("?")[0] + "?user=" + userId);
         socket.binaryType = "arraybuffer";
       } catch (e) {
-        return this.setState({ consoleData: [e.message] });
+        throw new Error(e);
       }
 
       this.setState({ socket, loading: true });
@@ -43,13 +42,11 @@ class App extends React.Component {
     }
   };
 
-  componentWillUpdate() {
-    console.time()
-  }
 
   componentDidUpdate(prevProps, prevState) {
+    console.timeEnd("time from getting data to render");
     const { consoleContainer } = this.state;
-    console.timeEnd()
+
     if (consoleContainer.current) {
       consoleContainer.current.scrollTop =
         consoleContainer.current.scrollHeight;
@@ -71,37 +68,28 @@ class App extends React.Component {
   }
 
   initWebSocket = () => {
-    let { socket } = this.state;
+    let { socket, userId } = this.state;
 
     socket.onopen = () => {
-      this.setState(prevState => ({
-        ...prevState,
-        consoleData: [...prevState.consoleData, "Соединение установлено."]
-      }));
-
-      this.request(JSON.stringify({ user: { userId: 666 } }));
+      this.request(JSON.stringify({ user: { userId } }));
     };
 
     socket.onclose = event => {
-      let reason = "";
-
-      if (event.wasClean) {
-        reason = "Соединение закрыто";
-      } else {
-        reason = "Обрыв соединения";
-      }
-
+     
       this.setState(prevState => ({
         ...prevState,
-        consoleData: [...prevState.consoleData, reason],
         authorized: false,
         socket: null,
         loading: false,
         order: null
       }));
+
     };
 
     socket.onmessage = async message => {
+
+      console.time("time from getting data to render");
+
       let data;
 
       let {
@@ -144,7 +132,6 @@ class App extends React.Component {
 
       this.setState(prevState => ({
         ...prevState,
-        consoleData: [JSON.stringify(data)],
         authorized,
         loading: false,
         socket,
@@ -157,7 +144,6 @@ class App extends React.Component {
     socket.onerror = error => {
       this.setState(prevState => ({
         ...prevState,
-        consoleData: [...prevState.consoleData, "Ошибка " + error.message],
         authorized: false,
         socket: null,
         loading: false
@@ -168,11 +154,6 @@ class App extends React.Component {
   request = body => {
     const { socket } = this.state;
     socket.send(body);
-
-    this.setState(prevState => ({
-      ...prevState,
-      consoleData: [...prevState.consoleData, "request ->   " + body]
-    }));
   };
 
   checkInstrument = ({ sym }) => {
@@ -206,12 +187,8 @@ class App extends React.Component {
     );
   };
 
-  clearConsole = () => {
-    this.setState({ consoleData: [] });
-  };
-
   render() {
-    var { authorized, consoleData, loading, instruments, markets } = this.state;
+    var { authorized, loading, instruments, markets } = this.state;
     const button = loading ? (
       <span>Loading</span>
     ) : (
@@ -267,7 +244,7 @@ class App extends React.Component {
         )}
 
         {instruments.map((el, i) => (
-          <button key={i} onClick={() => this.checkInstrument({ sym: el.sym })}>
+          <button className={markets[el.sym] && 'active'} key={i} onClick={() => this.checkInstrument({ sym: el.sym })}>
             {el.sym}
           </button>
         ))}
@@ -284,7 +261,8 @@ class App extends React.Component {
                       <b>instrument:</b> {markets[key].instrumentId}
                     </li>
                     <li>
-                      <b>bid:</b> {markets[key].bid}, <b>ask:</b> {markets[key].ask}
+                      <b>bid:</b> {markets[key].bid}, <b>ask:</b>{" "}
+                      {markets[key].ask}
                     </li>
                     <li>
                       <b>time:</b> {markets[key].time}
@@ -294,16 +272,6 @@ class App extends React.Component {
               );
             })}
           </div>
-          {consoleData.length ? (
-            <div className="console">
-              <button onClick={this.clearConsole}>Clear</button>
-              <div className="console-wrap" ref={this.state.consoleContainer}>
-                {consoleData.map((el, index) => (
-                  <p key={index}>{el}</p>
-                ))}
-              </div>
-            </div>
-          ) : null}
         </div>
       </div>
     );
