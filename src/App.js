@@ -42,7 +42,6 @@ class App extends React.Component {
     }
   };
 
-
   componentDidUpdate(prevProps, prevState) {
     console.timeEnd("time from getting data to render");
     const { consoleContainer } = this.state;
@@ -75,7 +74,6 @@ class App extends React.Component {
     };
 
     socket.onclose = event => {
-     
       this.setState(prevState => ({
         ...prevState,
         authorized: false,
@@ -83,11 +81,9 @@ class App extends React.Component {
         loading: false,
         order: null
       }));
-
     };
 
     socket.onmessage = async message => {
-
       console.time("time from getting data to render");
 
       let data;
@@ -103,7 +99,10 @@ class App extends React.Component {
       if (typeof message.data !== "string") {
         var bytearray = new Uint8Array(message.data);
         data = protoQuotes.decode(bytearray);
-        markets[data.instrumentId] = data;
+
+        if (markets[data.instrumentId]) {
+          markets[data.instrumentId] = data;
+        }
       } else {
         data = JSON.parse(message.data);
       }
@@ -156,7 +155,7 @@ class App extends React.Component {
     socket.send(body);
   };
 
-  checkInstrument = ({ sym }) => {
+  handleInstrumentClick = ({ sym }) => {
     let { broker, account, markets } = this.state;
 
     let marketsObj = { ...markets };
@@ -244,7 +243,11 @@ class App extends React.Component {
         )}
 
         {instruments.map((el, i) => (
-          <button className={markets[el.sym] && 'active'} key={i} onClick={() => this.checkInstrument({ sym: el.sym })}>
+          <button
+            className={markets[el.sym] && "active"}
+            key={i}
+            onClick={() => this.handleInstrumentClick({ sym: el.sym })}
+          >
             {el.sym}
           </button>
         ))}
