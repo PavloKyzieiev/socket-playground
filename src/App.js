@@ -2,6 +2,13 @@ import React from "react";
 
 import protobuf from "protobufjs";
 
+const defaultQuote = {
+  instrumentId: null,
+  bid: null,
+  ask: null,
+  time: null
+};
+
 class App extends React.Component {
   state = {
     storageUrl: localStorage.getItem("storageUrl") || "",
@@ -101,7 +108,11 @@ class App extends React.Component {
         data = protoQuotes.decode(bytearray);
 
         if (markets[data.instrumentId]) {
-          markets[data.instrumentId] = data;
+          const { instrumentId, bid, ask, time } = data;
+          markets[data.instrumentId].instrumentId = instrumentId;
+          markets[data.instrumentId].bid = bid;
+          markets[data.instrumentId].ask = ask;
+          markets[data.instrumentId].time = time;
         }
       } else {
         data = JSON.parse(message.data);
@@ -164,7 +175,7 @@ class App extends React.Component {
     if (marketsObj[sym]) {
       delete marketsObj[sym];
     } else {
-      marketsObj[sym] = {};
+      marketsObj[sym] = { ...defaultQuote };
     }
 
     Object.keys(marketsObj).forEach(el => syms.push(el));
