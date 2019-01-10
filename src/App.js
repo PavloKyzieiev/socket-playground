@@ -64,7 +64,10 @@ class App extends React.Component {
   }
 
   componentDidMount() {
+    console.time()
     protobuf.load("/proto/awesome.proto").then(root => {
+      console.timeEnd()
+      console.log(root)
       var protoQuotes = root.lookupType("protobuf.quotes.Quote");
       this.setState(prevState => ({
         ...prevState,
@@ -185,7 +188,7 @@ class App extends React.Component {
     this.request(
       JSON.stringify({
         type: 1,
-        sub: [{ rec: { brk: broker, acc: account }, sym: syms }]
+        sub: [{ rec: { b: broker, a: account }, sym: syms }]
       })
     );
   };
@@ -193,7 +196,7 @@ class App extends React.Component {
   getInstruments = () => {
     const { broker, account, socket } = this.state;
     socket.send(
-      JSON.stringify({ type: 2, rec: { brk: broker, acc: account } })
+      JSON.stringify({ type: 2, rec: { b: broker, a: account } })
     );
   };
 
