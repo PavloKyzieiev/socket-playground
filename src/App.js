@@ -1,7 +1,6 @@
 import React from "react";
 import Pbf from "pbf";
 import { Quote } from "./proto/awesome";
-// import protobuf from "protobufjs";
 
 const defaultQuote = {
   instrumentId: 0,
@@ -85,7 +84,7 @@ class App extends React.Component {
 
       let { authorized, instruments, currentMarket, markets } = this.state;
 
-      if (message.data === "10") return console.timeEnd("Ping-Pong");
+      if (message.data === "1") return console.timeEnd("Ping-Pong");
 
       if (typeof message.data !== "string") {
         var pbf = new Pbf(message.data);
@@ -182,7 +181,7 @@ class App extends React.Component {
   pingPong = () => {
     const { socket } = this.state;
     console.time("Ping-Pong");
-    socket.send("9");
+    socket.send("0");
   };
 
   render() {
