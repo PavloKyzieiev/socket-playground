@@ -1,12 +1,13 @@
 import React from "react";
-
-import protobuf from "protobufjs";
+import Pbf from "pbf";
+import { Quote } from "./proto/awesome";
+// import protobuf from "protobufjs";
 
 const defaultQuote = {
-  instrumentId: null,
-  bid: null,
-  ask: null,
-  time: null
+  instrumentId: 0,
+  bid: 0,
+  ask: 0,
+  time: 0
 };
 
 class App extends React.Component {
@@ -50,7 +51,6 @@ class App extends React.Component {
   };
 
   componentDidUpdate(prevProps, prevState) {
-    console.timeEnd("time from getting data to render");
     const { consoleContainer } = this.state;
 
     if (consoleContainer.current) {
@@ -61,19 +61,6 @@ class App extends React.Component {
     if (!prevState.socket && this.state.socket) {
       this.initWebSocket();
     }
-  }
-
-  componentDidMount() {
-    console.time()
-    protobuf.load("/proto/awesome.proto").then(root => {
-      console.timeEnd()
-      console.log(root)
-      var protoQuotes = root.lookupType("protobuf.quotes.Quote");
-      this.setState(prevState => ({
-        ...prevState,
-        protoQuotes
-      }));
-    });
   }
 
   initWebSocket = () => {
@@ -94,21 +81,15 @@ class App extends React.Component {
     };
 
     socket.onmessage = async message => {
-      console.time("time from getting data to render");
-
       let data;
 
-      let {
-        authorized,
-        protoQuotes,
-        instruments,
-        currentMarket,
-        markets
-      } = this.state;
+      let { authorized, instruments, currentMarket, markets } = this.state;
+
+      if (message.data === "10") return console.timeEnd("Ping-Pong");
 
       if (typeof message.data !== "string") {
-        var bytearray = new Uint8Array(message.data);
-        data = protoQuotes.decode(bytearray);
+        var pbf = new Pbf(message.data);
+        data = Quote.read(pbf)
 
         if (markets[data.instrumentId]) {
           const { instrumentId, bid, ask, time } = data;
@@ -195,9 +176,13 @@ class App extends React.Component {
 
   getInstruments = () => {
     const { broker, account, socket } = this.state;
-    socket.send(
-      JSON.stringify({ type: 2, rec: { b: broker, a: account } })
-    );
+    socket.send(JSON.stringify({ type: 2, rec: { b: broker, a: account } }));
+  };
+
+  pingPong = () => {
+    const { socket } = this.state;
+    console.time("Ping-Pong");
+    socket.send("9");
   };
 
   render() {
@@ -253,6 +238,7 @@ class App extends React.Component {
         {authorized && (
           <div>
             <button onClick={this.getInstruments}>Get Instruments</button>
+            <button onClick={this.pingPong}>Ping-Pong</button>
           </div>
         )}
 

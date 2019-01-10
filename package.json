@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "google-protobuf": "^3.6.1",
+    "pbf": "^3.1.0",
     "protobufjs": "^6.8.8",
     "query-string": "^6.2.0",
     "react": "^16.7.0",
