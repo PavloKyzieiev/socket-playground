@@ -18,11 +18,8 @@ class App extends React.Component {
     authorized: false,
     loading: false,
     socket: null,
-    protoQuotes: null,
     instruments: [],
-    consoleContainer: React.createRef(),
-    markets: {},
-    selectedInstruments: []
+    markets: {}
   };
 
   handleInputChange = (event, key) => {
@@ -34,6 +31,7 @@ class App extends React.Component {
   handleConnectButtonClick = () => {
     const { authorized, storageUrl, userId } = this.state;
     let { socket } = this.state;
+
     if (!authorized) {
       try {
         socket = new WebSocket(storageUrl.split("?")[0] + "?user=" + userId);
@@ -44,19 +42,13 @@ class App extends React.Component {
 
       this.setState({ socket, loading: true });
     } else if (socket && authorized) {
-      this.setState({ instruments: [], activeInstrument: null });
+      this.setState({ instruments: [] });
+
       socket.close();
     }
   };
 
   componentDidUpdate(prevProps, prevState) {
-    const { consoleContainer } = this.state;
-
-    if (consoleContainer.current) {
-      consoleContainer.current.scrollTop =
-        consoleContainer.current.scrollHeight;
-    }
-
     if (!prevState.socket && this.state.socket) {
       this.initWebSocket();
     }
@@ -87,16 +79,23 @@ class App extends React.Component {
       if (message.data === "1") return console.timeEnd("Ping-Pong");
 
       if (typeof message.data !== "string") {
-        var pbf = new Pbf(message.data);
-        data = Quote.read(pbf)
+        let pbf = new Pbf(message.data);
 
-        if (markets[data.instrumentId]) {
-          const { instrumentId, bid, ask, time } = data;
-          markets[data.instrumentId].instrumentId = instrumentId;
-          markets[data.instrumentId].bid = bid;
-          markets[data.instrumentId].ask = ask;
-          markets[data.instrumentId].time = time;
+        data = Quote.read(pbf);
+
+        const { instrumentId, bid, ask, time } = data;
+
+        let market = markets[instrumentId];
+
+        if (!market) {
+          market = {};
+          markets[instrumentId] = market;
         }
+
+        market.instrumentId = instrumentId;
+        market.bid = bid;
+        market.ask = ask;
+        market.time = time;
       } else {
         data = JSON.parse(message.data);
       }
@@ -135,12 +134,7 @@ class App extends React.Component {
     };
 
     socket.onerror = error => {
-      this.setState(prevState => ({
-        ...prevState,
-        authorized: false,
-        socket: null,
-        loading: false
-      }));
+      console.log("asdasd");
     };
   };
 
@@ -153,7 +147,8 @@ class App extends React.Component {
     let { broker, account, markets } = this.state;
 
     let marketsObj = { ...markets };
-    let syms = [];
+    let syms = [],
+      hashCode;
 
     if (marketsObj[sym]) {
       delete marketsObj[sym];
@@ -165,16 +160,20 @@ class App extends React.Component {
 
     this.setState({ markets: marketsObj });
 
+    hashCode = stringToHash(broker + "&" + account + "&" + syms);
+
     this.request(
       JSON.stringify({
         type: 1,
-        sub: [{ rec: { b: broker, a: account }, sym: syms }]
+        sub: [{ rec: { b: broker, a: account }, sym: syms }],
+        hash: hashCode
       })
     );
   };
 
   getInstruments = () => {
     const { broker, account, socket } = this.state;
+
     socket.send(JSON.stringify({ type: 2, rec: { b: broker, a: account } }));
   };
 
@@ -212,6 +211,7 @@ class App extends React.Component {
               />
             </div>
           </div>
+
           {authorized && (
             <div>
               <div className="form-group">
@@ -278,6 +278,17 @@ class App extends React.Component {
       </div>
     );
   }
+}
+
+function stringToHash(str) {
+  var hash = 5381,
+    i = str.length;
+
+  while (i) {
+    hash = (hash * 33) ^ str.charCodeAt(--i);
+  }
+
+  return hash >>> 0;
 }
 
 export default App;
