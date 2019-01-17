@@ -165,8 +165,10 @@ class App extends React.Component {
     this.request(
       JSON.stringify({
         type: 1,
-        sub: [{ rec: { b: broker, a: account }, sym: syms }],
-        hash: hashCode
+        s: {
+          sub: [{ rec: { b: broker, a: account }, sym: syms }],
+          hash: hashCode
+        }
       })
     );
   };
