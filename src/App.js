@@ -42,7 +42,7 @@ class App extends React.Component {
 
       this.setState({ socket, loading: true });
     } else if (socket && authorized) {
-      this.setState({ instruments: [] });
+      this.setState({ instruments: [], socket: null });
 
       socket.close();
     }
@@ -59,16 +59,6 @@ class App extends React.Component {
 
     socket.onopen = () => {
       this.request(JSON.stringify({ user: { userId } }));
-    };
-
-    socket.onclose = event => {
-      this.setState(prevState => ({
-        ...prevState,
-        authorized: false,
-        socket: null,
-        loading: false,
-        order: null
-      }));
     };
 
     socket.onmessage = async message => {
@@ -97,7 +87,9 @@ class App extends React.Component {
         market.ask = ask;
         market.time = time;
       } else {
+
         data = JSON.parse(message.data);
+
       }
 
       const { type } = data;
@@ -115,12 +107,16 @@ class App extends React.Component {
           instruments = data.instruments;
           break;
         }
+        case 10: {
+          data.s.sub[0].sym.forEach(el => {
+            markets[el] = {}
+          });
+          break;
+        }
         default: {
           break;
         }
       }
-
-      if (!authorized) socket = null;
 
       this.setState(prevState => ({
         ...prevState,
@@ -171,6 +167,8 @@ class App extends React.Component {
         }
       })
     );
+
+    
   };
 
   getInstruments = () => {
