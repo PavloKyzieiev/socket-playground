@@ -109,7 +109,9 @@ class App extends React.Component {
         }
         case 10: {
           data.s.sub[0].sym.forEach(el => {
-            markets[el] = {}
+            markets[el] = {
+              instrumentId: el
+            }
           });
           break;
         }
