@@ -91,17 +91,21 @@ class App extends React.Component {
 
       const { type } = data;
 
+      let newMarkets = null;
+
       switch (type) {
         case 7: {
           instruments = data.instruments;
           break;
         }
         case 10: {
+          newMarkets = {};
           data.s.sub[0].sym.forEach(el => {
             if (!markets[el])
-              markets[el] = {
+              newMarkets[el] = {
                 instrumentId: el
               };
+            else newMarkets[el] = markets[el];
           });
           break;
         }
@@ -116,7 +120,7 @@ class App extends React.Component {
         socket,
         instruments,
         currentMarket,
-        markets
+        markets: newMarkets || markets
       }));
     };
 
