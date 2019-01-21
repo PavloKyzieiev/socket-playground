@@ -55,16 +55,18 @@ class App extends React.Component {
   }
 
   initWebSocket = () => {
-    let { socket, userId } = this.state;
+    let { socket } = this.state;
 
     socket.onopen = () => {
-      this.request(JSON.stringify({ user: { userId } }));
+      this.setState({
+        authorized: true
+      });
     };
 
     socket.onmessage = async message => {
       let data;
 
-      let { authorized, instruments, currentMarket, markets } = this.state;
+      let { instruments, currentMarket, markets } = this.state;
 
       if (message.data === "1") return console.timeEnd("Ping-Pong");
 
@@ -86,23 +88,14 @@ class App extends React.Component {
         market.bid = bid;
         market.ask = ask;
         market.time = time;
+        
       } else {
-
         data = JSON.parse(message.data);
-
       }
 
       const { type } = data;
 
       switch (type) {
-        case 0: {
-          authorized = true;
-          break;
-        }
-        case 1: {
-          authorized = false;
-          break;
-        }
         case 7: {
           instruments = data.instruments;
           break;
@@ -111,7 +104,7 @@ class App extends React.Component {
           data.s.sub[0].sym.forEach(el => {
             markets[el] = {
               instrumentId: el
-            }
+            };
           });
           break;
         }
@@ -122,7 +115,6 @@ class App extends React.Component {
 
       this.setState(prevState => ({
         ...prevState,
-        authorized,
         loading: false,
         socket,
         instruments,
@@ -132,8 +124,16 @@ class App extends React.Component {
     };
 
     socket.onerror = error => {
-      console.log("asdasd");
+      console.log(error);
     };
+
+    socket.onclose = () => {
+      this.setState({
+        authorized: false,
+        socket: null,
+        markets: {}
+      })
+    }
   };
 
   request = body => {
@@ -169,8 +169,6 @@ class App extends React.Component {
         }
       })
     );
-
-    
   };
 
   getInstruments = () => {
