@@ -79,16 +79,12 @@ class App extends React.Component {
 
         let market = markets[instrumentId];
 
-        if (!market) {
-          market = {};
-          markets[instrumentId] = market;
+        if (market) {
+          market.instrumentId = instrumentId;
+          market.bid = bid;
+          market.ask = ask;
+          market.time = time;
         }
-
-        market.instrumentId = instrumentId;
-        market.bid = bid;
-        market.ask = ask;
-        market.time = time;
-        
       } else {
         data = JSON.parse(message.data);
       }
@@ -102,9 +98,10 @@ class App extends React.Component {
         }
         case 10: {
           data.s.sub[0].sym.forEach(el => {
-            markets[el] = {
-              instrumentId: el
-            };
+            if (!markets[el])
+              markets[el] = {
+                instrumentId: el
+              };
           });
           break;
         }
@@ -132,8 +129,8 @@ class App extends React.Component {
         authorized: false,
         socket: null,
         markets: {}
-      })
-    }
+      });
+    };
   };
 
   request = body => {
