@@ -1,8 +1,11 @@
 import React from "react";
-import Pbf from "pbf";
-import { Quote } from "./proto/awesome";
+// import Pbf from "pbf";
+// import { Quote } from "./proto/awesome";
 import Order from "./components/Order/Order";
 import Stress from "./components/Stress/Stress";
+
+import { connect } from "react-redux";
+import { initSocket } from "./store/actions/socket";
 
 window.limits = {
   perSecond: 200,
@@ -24,8 +27,6 @@ class App extends React.Component {
     account: localStorage.getItem("account") || "",
     perSecond: localStorage.getItem("perSecond") || 10,
     seconds: localStorage.getItem("seconds") || 1,
-    authorized: false,
-    loading: false,
     socket: null,
     instruments: [],
     subscriptions: {},
@@ -46,23 +47,8 @@ class App extends React.Component {
   };
 
   handleConnectButtonClick = () => {
-    const { authorized, storageUrl, userId } = this.state;
-    let { socket } = this.state;
-
-    if (!authorized) {
-      try {
-        socket = new WebSocket(storageUrl.split("?")[0] + "?user=" + userId);
-        socket.binaryType = "arraybuffer";
-      } catch (e) {
-        throw new Error(e);
-      }
-
-      this.setState({ socket, loading: true });
-    } else if (socket && authorized) {
-      this.setState({ instruments: [], socket: null });
-
-      socket.close();
-    }
+    const { storageUrl, userId } = this.state;
+    this.props.initWebSocket(storageUrl.split("?")[0] + "?user=" + userId);
   };
 
   componentDidUpdate(prevProps, prevState) {
@@ -71,100 +57,100 @@ class App extends React.Component {
     }
   }
 
-  initWebSocket = () => {
-    let { socket } = this.state;
+  // initWebSocket = () => {
+  //   let { socket } = this.state;
 
-    socket.onopen = () => {
-      this.setState({
-        authorized: true
-      });
-    };
+  //   socket.onopen = () => {
+  //     this.setState({
+  //       authorized: true
+  //     });
+  //   };
 
-    socket.onmessage = async message => {
-      let data;
+  //   socket.onmessage = async message => {
+  //     let data;
 
-      let { instruments, subscriptions, orders } = this.state;
+  //     let { instruments, subscriptions, orders } = this.state;
 
-      if (message.data === "1") return console.timeEnd("Ping-Pong");
+  //     if (message.data === "1") return console.timeEnd("Ping-Pong");
 
-      if (typeof message.data !== "string") {
-        let pbf = new Pbf(message.data);
+  //     if (typeof message.data !== "string") {
+  //       let pbf = new Pbf(message.data);
 
-        data = Quote.read(pbf);
+  //       data = Quote.read(pbf);
 
-        const { instrumentId, bid, ask, time } = data;
+  //       const { instrumentId, bid, ask, time } = data;
 
-        let sub = subscriptions[instrumentId];
+  //       let sub = subscriptions[instrumentId];
 
-        if (sub) {
-          sub.instrumentId = instrumentId;
-          sub.bid = bid;
-          sub.ask = ask;
-          sub.time = time;
-        } else {
-          orders[instrumentId] = {
-            instrumentId,
-            bid,
-            ask,
-            time
-          };
-        }
-      } else {
-        data = JSON.parse(message.data);
-      }
+  //       if (sub) {
+  //         sub.instrumentId = instrumentId;
+  //         sub.bid = bid;
+  //         sub.ask = ask;
+  //         sub.time = time;
+  //       } else {
+  //         orders[instrumentId] = {
+  //           instrumentId,
+  //           bid,
+  //           ask,
+  //           time
+  //         };
+  //       }
+  //     } else {
+  //       data = JSON.parse(message.data);
+  //     }
 
-      const { type } = data;
+  //     const { type } = data;
 
-      let newSubscriptions = null;
+  //     let newSubscriptions = null;
 
-      switch (type) {
-        case 7: {
-          instruments = data.instruments;
-          break;
-        }
-        case 10: {
-          newSubscriptions = {};
+  //     switch (type) {
+  //       case 7: {
+  //         instruments = data.instruments;
+  //         break;
+  //       }
+  //       case 10: {
+  //         newSubscriptions = {};
 
-          data.s.sub[0].sym.forEach(el => {
-            delete orders[el];
+  //         data.s.sub[0].sym.forEach(el => {
+  //           delete orders[el];
 
-            if (!subscriptions[el]) {
-              newSubscriptions[el] = {
-                instrumentId: el
-              };
-            } else {
-              newSubscriptions[el] = subscriptions[el];
-            }
-          });
+  //           if (!subscriptions[el]) {
+  //             newSubscriptions[el] = {
+  //               instrumentId: el
+  //             };
+  //           } else {
+  //             newSubscriptions[el] = subscriptions[el];
+  //           }
+  //         });
 
-          break;
-        }
-        default: {
-          break;
-        }
-      }
+  //         break;
+  //       }
+  //       default: {
+  //         break;
+  //       }
+  //     }
 
-      this.setState(prevState => ({
-        ...prevState,
-        loading: false,
-        instruments,
-        subscriptions: newSubscriptions || subscriptions,
-        orders
-      }));
-    };
+  //     this.setState(prevState => ({
+  //       ...prevState,
+  //       loading: false,
+  //       instruments,
+  //       subscriptions: newSubscriptions || subscriptions,
+  //       orders
+  //     }));
+  //   };
 
-    socket.onerror = error => {
-      console.log(error);
-    };
+  //   socket.onerror = error => {
+  //     console.log(error);
+  //   };
 
-    socket.onclose = () => {
-      this.setState({
-        authorized: false,
-        socket: null,
-        subscriptions: {}
-      });
-    };
-  };
+  //   socket.onclose = () => {
+  //     this.setState({
+  //       authorized: false,
+  //       socket: null,
+  //       subscriptions: {}
+  //     });
+  //   };
+  // };
 
   request = body => {
     const { socket } = this.state;
@@ -237,9 +223,7 @@ class App extends React.Component {
   };
 
   render() {
-    var {
-      authorized,
-      loading,
+    let {
       instruments,
       subscriptions,
       orders,
@@ -247,11 +231,14 @@ class App extends React.Component {
       seconds,
       stressEnabled
     } = this.state;
+
+    let { authorized, loading } = this.props;
+
     const button = loading ? (
       <span>Loading</span>
-    ) : (
+    ) : !authorized && (
       <button type="button" onClick={this.handleConnectButtonClick}>
-        {authorized ? "Disconnect" : "Connect"}
+        Connect
       </button>
     );
     return (
@@ -360,4 +347,20 @@ function stringToHash(str) {
   return hash >>> 0;
 }
 
-export default App;
+const mapStateToProps = state => {
+  return {
+    loading: state.socket.loading,
+    authorized: state.socket.authorized
+  };
+};
+
+const mapDispatchToProps = dispatch => {
+  return {
+    initWebSocket: url => dispatch(initSocket(url))
+  };
+};
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(App);
