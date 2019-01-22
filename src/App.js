@@ -216,8 +216,6 @@ class App extends React.Component {
   handleStressTest = async () => {
     const { perSecond, seconds, instruments } = this.state;
 
-    let times = 0;
-
     this.setState({ stressEnabled: true });
 
     const stress = sym => {
@@ -227,10 +225,10 @@ class App extends React.Component {
       });
     };
 
-    for (let i = 0; i < seconds; i++) {
-      if (times === +perSecond) break;
-      await stress(randomProperty(instruments));
-      times++;
+    for (let i = 0; i < +seconds; i++) {
+      for (let j = 0; j < +perSecond; j++) {
+        await stress(randomProperty(instruments));
+      }
     }
 
     this.setState({ stressEnabled: false });
@@ -305,6 +303,7 @@ class App extends React.Component {
               inputChange={this.handleInputChange}
               perSecond={perSecond}
               seconds={seconds}
+              start={this.handleStressTest}
             />
           </div>
         )}
