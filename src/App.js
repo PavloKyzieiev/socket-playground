@@ -1,6 +1,13 @@
 import React from "react";
 import Pbf from "pbf";
 import { Quote } from "./proto/awesome";
+import Order from "./components/Order/Order";
+import Stress from "./components/Stress/Stress";
+
+window.limits = {
+  perSecond: 200,
+  seconds: 60
+};
 
 const defaultQuote = {
   instrumentId: 0,
@@ -15,15 +22,25 @@ class App extends React.Component {
     userId: localStorage.getItem("userId") || "",
     broker: localStorage.getItem("broker") || "",
     account: localStorage.getItem("account") || "",
+    perSecond: localStorage.getItem("perSecond") || 10,
+    seconds: localStorage.getItem("seconds") || 1,
     authorized: false,
     loading: false,
     socket: null,
     instruments: [],
-    markets: {}
+    subscriptions: {},
+    orders: {},
+    stressEnabled: false
   };
 
   handleInputChange = (event, key) => {
-    const { value } = event.target;
+    let { value } = event.target;
+
+    if (key === "perSecond" && value > window.limits.perSecond)
+      value = window.limits.perSecond;
+    if (key === "seconds" && value > window.limits.seconds)
+      value = window.limits.seconds;
+
     localStorage.setItem(key, value);
     this.setState({ [key]: value });
   };
@@ -66,7 +83,7 @@ class App extends React.Component {
     socket.onmessage = async message => {
       let data;
 
-      let { instruments, currentMarket, markets } = this.state;
+      let { instruments, subscriptions, orders } = this.state;
 
       if (message.data === "1") return console.timeEnd("Ping-Pong");
 
@@ -77,13 +94,20 @@ class App extends React.Component {
 
         const { instrumentId, bid, ask, time } = data;
 
-        let market = markets[instrumentId];
+        let sub = subscriptions[instrumentId];
 
-        if (market) {
-          market.instrumentId = instrumentId;
-          market.bid = bid;
-          market.ask = ask;
-          market.time = time;
+        if (sub) {
+          sub.instrumentId = instrumentId;
+          sub.bid = bid;
+          sub.ask = ask;
+          sub.time = time;
+        } else {
+          orders[instrumentId] = {
+            instrumentId,
+            bid,
+            ask,
+            time
+          };
         }
       } else {
         data = JSON.parse(message.data);
@@ -91,7 +115,7 @@ class App extends React.Component {
 
       const { type } = data;
 
-      let newMarkets = null;
+      let newSubscriptions = null;
 
       switch (type) {
         case 7: {
@@ -99,14 +123,20 @@ class App extends React.Component {
           break;
         }
         case 10: {
-          newMarkets = {};
+          newSubscriptions = {};
+
           data.s.sub[0].sym.forEach(el => {
-            if (!markets[el])
-              newMarkets[el] = {
+            delete orders[el];
+
+            if (!subscriptions[el]) {
+              newSubscriptions[el] = {
                 instrumentId: el
               };
-            else newMarkets[el] = markets[el];
+            } else {
+              newSubscriptions[el] = subscriptions[el];
+            }
           });
+
           break;
         }
         default: {
@@ -117,10 +147,9 @@ class App extends React.Component {
       this.setState(prevState => ({
         ...prevState,
         loading: false,
-        socket,
         instruments,
-        currentMarket,
-        markets: newMarkets || markets
+        subscriptions: newSubscriptions || subscriptions,
+        orders
       }));
     };
 
@@ -132,7 +161,7 @@ class App extends React.Component {
       this.setState({
         authorized: false,
         socket: null,
-        markets: {}
+        subscriptions: {}
       });
     };
   };
@@ -143,21 +172,21 @@ class App extends React.Component {
   };
 
   handleInstrumentClick = ({ sym }) => {
-    let { broker, account, markets } = this.state;
+    let { broker, account, subscriptions } = this.state;
 
-    let marketsObj = { ...markets };
+    let subsObj = { ...subscriptions };
     let syms = [],
       hashCode;
 
-    if (marketsObj[sym]) {
-      delete marketsObj[sym];
+    if (subsObj[sym]) {
+      delete subsObj[sym];
     } else {
-      marketsObj[sym] = { ...defaultQuote };
+      subsObj[sym] = { ...defaultQuote };
     }
 
-    Object.keys(marketsObj).forEach(el => syms.push(el));
+    Object.keys(subsObj).forEach(el => syms.push(el));
 
-    this.setState({ markets: marketsObj });
+    this.setState({ subscriptions: subsObj });
 
     hashCode = stringToHash(broker + "&" + account + "&" + syms);
 
@@ -184,8 +213,40 @@ class App extends React.Component {
     socket.send("0");
   };
 
+  handleStressTest = async () => {
+    const { perSecond, seconds, instruments } = this.state;
+
+    let times = 0;
+
+    this.setState({ stressEnabled: true });
+
+    const stress = sym => {
+      return new Promise((res, rej) => {
+        this.handleInstrumentClick({ sym });
+        setTimeout(res, Math.floor(1000 / +perSecond));
+      });
+    };
+
+    for (let i = 0; i < seconds; i++) {
+      if (times === +perSecond) break;
+      await stress(randomProperty(instruments));
+      times++;
+    }
+
+    this.setState({ stressEnabled: false });
+  };
+
   render() {
-    var { authorized, loading, instruments, markets } = this.state;
+    var {
+      authorized,
+      loading,
+      instruments,
+      subscriptions,
+      orders,
+      perSecond,
+      seconds,
+      stressEnabled
+    } = this.state;
     const button = loading ? (
       <span>Loading</span>
     ) : (
@@ -239,47 +300,54 @@ class App extends React.Component {
           <div>
             <button onClick={this.getInstruments}>Get Instruments</button>
             <button onClick={this.pingPong}>Ping-Pong</button>
+            <Stress
+              enabled={stressEnabled}
+              inputChange={this.handleInputChange}
+              perSecond={perSecond}
+              seconds={seconds}
+            />
           </div>
         )}
-
-        {instruments.map((el, i) => (
-          <button
-            className={markets[el.sym] && "active"}
-            key={i}
-            onClick={() => this.handleInstrumentClick({ sym: el.sym })}
-          >
-            {el.sym}
-          </button>
-        ))}
+        <div className="instruments">
+          {instruments.map((el, i) => (
+            <button
+              className={subscriptions[el.sym] && "active"}
+              key={i}
+              onClick={() => this.handleInstrumentClick({ sym: el.sym })}
+            >
+              {el.sym}
+            </button>
+          ))}
+        </div>
 
         <hr />
-
-        <div className="body_wrap">
-          <div className="trading_wrap">
-            {Object.keys(markets).map(key => {
-              return (
-                <div key={key} className="trading">
-                  <ul>
-                    <li>
-                      <b>instrument:</b> {markets[key].instrumentId}
-                    </li>
-                    <li>
-                      <b>bid:</b> {markets[key].bid}, <b>ask:</b>{" "}
-                      {markets[key].ask}
-                    </li>
-                    <li>
-                      <b>time:</b> {markets[key].time}
-                    </li>
-                  </ul>
-                </div>
-              );
-            })}
+        {authorized && (
+          <div className="body_wrap">
+            <div className="trading_wrap">
+              <div className="tr_item">
+                <h2>Subscriptions:</h2>
+                {Object.keys(subscriptions).map(key => (
+                  <Order key={key} sub={subscriptions[key]} />
+                ))}
+              </div>
+              <div className="tr_item orders">
+                <h2>Orders:</h2>
+                {Object.keys(orders).map(key => (
+                  <Order key={key} sub={orders[key]} />
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
 }
+
+var randomProperty = function(obj) {
+  var keys = Object.keys(obj);
+  return keys[(keys.length * Math.random()) << 0];
+};
 
 function stringToHash(str) {
   var hash = 5381,
