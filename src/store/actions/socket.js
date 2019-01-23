@@ -1,8 +1,10 @@
 import Pbf from "pbf";
-import Quote from "../../proto/awesome";
-import { deepClone } from "../../utils/object";
+import { Quote } from "../../proto/awesome";
+import { deepClone } from "../../utils/objects";
 
 import * as actionTypes from "./actionTypes";
+
+import { fetchInstrumentsSuccess, setSubscriptions, setOrders } from "./market";
 
 export function initSocket(socketUrl) {
   return (dispatch, getState) => {
@@ -17,19 +19,18 @@ export function initSocket(socketUrl) {
     };
 
     socket.onopen = () => {
-      dispatch(initSocketSuccess());
+      dispatch(initSocketSuccess(socket));
     };
 
     socket.onmessage = message => {
       let data;
-
-      let { subscriptions, orders } = getState().socket;
-
+      let { subscriptions, orders } = getState().market;
       let ordersObj = null;
       let newSubscriptions = null;
       let subscriptionsObj = null;
 
       if (typeof message.data !== "string") {
+
         let pbf = new Pbf(message.data);
 
         data = Quote.read(pbf);
@@ -53,6 +54,7 @@ export function initSocket(socketUrl) {
             time
           };
         }
+
       } else {
         data = JSON.parse(message.data);
       }
@@ -61,14 +63,14 @@ export function initSocket(socketUrl) {
 
       switch (type) {
         case 7: {
-          return dispatch(setInstruments(data.instruments));
+          return dispatch(fetchInstrumentsSuccess(data.instruments));
         }
         case 10: {
           newSubscriptions = {};
 
           data.s.sub[0].sym.forEach(el => {
             if (!ordersObj) ordersObj = deepClone(orders);
-            
+
             delete ordersObj[el];
 
             if (!subscriptions[el]) {
@@ -82,6 +84,7 @@ export function initSocket(socketUrl) {
               newSubscriptions[el] = subscriptionsObj[el];
             }
           });
+
           break;
         }
         default: {
@@ -89,30 +92,9 @@ export function initSocket(socketUrl) {
         }
       }
 
-      newSubscriptions && dispatch(setSubscriptions(newSubscriptions));
-      ordersObj && dispatch(setOrders(ordersObj));
+      if (newSubscriptions) dispatch(setSubscriptions(newSubscriptions));
+      if (ordersObj) dispatch(setOrders(ordersObj));
     };
-  };
-}
-
-function setInstruments(instruments) {
-  return {
-    type: actionTypes.SET_INSTRUMENTS,
-    instruments
-  };
-}
-
-function setOrders(orders) {
-  return {
-    type: actionTypes.SET_ORDERS,
-    orders
-  };
-}
-
-function setSubscriptions(subscriptions) {
-  return {
-    type: actionTypes.SET_SUBSCRIPTIONS,
-    subscriptions
   };
 }
 

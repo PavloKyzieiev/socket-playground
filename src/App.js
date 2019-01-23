@@ -1,22 +1,16 @@
 import React from "react";
-// import Pbf from "pbf";
-// import { Quote } from "./proto/awesome";
 import Order from "./components/Order/Order";
 import Stress from "./components/Stress/Stress";
+import Instruments from "./components/Instruments/Instruments";
+import Input from "./components/UI/Input/Input";
 
 import { connect } from "react-redux";
 import { initSocket } from "./store/actions/socket";
+import { fetchInstruments, setInstrument } from "./store/actions/market";
 
 window.limits = {
   perSecond: 200,
   seconds: 60
-};
-
-const defaultQuote = {
-  instrumentId: 0,
-  bid: 0,
-  ask: 0,
-  time: 0
 };
 
 class App extends React.Component {
@@ -27,10 +21,6 @@ class App extends React.Component {
     account: localStorage.getItem("account") || "",
     perSecond: localStorage.getItem("perSecond") || 10,
     seconds: localStorage.getItem("seconds") || 1,
-    socket: null,
-    instruments: [],
-    subscriptions: {},
-    orders: {},
     stressEnabled: false
   };
 
@@ -51,88 +41,46 @@ class App extends React.Component {
     this.props.initWebSocket(storageUrl.split("?")[0] + "?user=" + userId);
   };
 
-  componentDidUpdate(prevProps, prevState) {
-    if (!prevState.socket && this.state.socket) {
-      this.initWebSocket();
-    }
-  }
-
   request = body => {
     const { socket } = this.state;
     socket.send(body);
   };
 
-  handleInstrumentClick = ({ sym }) => {
-    let { broker, account, subscriptions } = this.state;
-
-    let subsObj = { ...subscriptions };
-    let syms = [],
-      hashCode;
-
-    if (subsObj[sym]) {
-      delete subsObj[sym];
-    } else {
-      subsObj[sym] = { ...defaultQuote };
-    }
-
-    Object.keys(subsObj).forEach(el => syms.push(el));
-
-    this.setState({ subscriptions: subsObj });
-
-    hashCode = stringToHash(broker + "&" + account + "&" + syms);
-
-    this.request(
-      JSON.stringify({
-        type: 1,
-        s: {
-          sub: [{ rec: { b: broker, a: account }, sym: syms }],
-          hash: hashCode
-        }
-      })
-    );
+  handleInstrumentClick = sym => {
+    const { broker, account } = this.state;
+    this.props.setInstrument(sym, broker, account);
   };
 
   getInstruments = () => {
-    const { broker, account, socket } = this.state;
-
-    socket.send(JSON.stringify({ type: 2, rec: { b: broker, a: account } }));
-  };
-
-  pingPong = () => {
-    const { socket } = this.state;
-    console.time("Ping-Pong");
-    socket.send("0");
+    const { broker, account } = this.state;
+    this.props.fetchInstruments(broker, account);
   };
 
   handleStressTest = async () => {
-    const { perSecond, seconds, instruments } = this.props;
-
-    let times = 0;
+    const { seconds, perSecond } = this.state;
+    const { instruments } = this.props;
 
     this.setState({ stressEnabled: true });
 
     const stress = sym => {
       return new Promise((res, rej) => {
-        this.handleInstrumentClick({ sym });
+        this.handleInstrumentClick(sym);
         setTimeout(res, Math.floor(1000 / +perSecond));
       });
     };
 
-    for (let i = 0; i < seconds; i++) {
-      if (times === +perSecond) break;
-      await stress(randomProperty(instruments));
-      times++;
+    for (let i = 0; i < +seconds; i++) {
+      for (let j = 0; j < +perSecond; j++) {
+        let randIndex = Math.floor(Math.random() * instruments.length);
+        await stress(instruments[randIndex].sym);
+      }
     }
 
     this.setState({ stressEnabled: false });
   };
 
   render() {
-    let {
-      perSecond,
-      seconds,
-      stressEnabled
-    } = this.state;
+    let { perSecond, seconds, stressEnabled } = this.state;
 
     let {
       authorized,
@@ -142,80 +90,64 @@ class App extends React.Component {
       orders
     } = this.props;
 
-    const button = loading ? (
-      <span>Loading</span>
-    ) : (
-      !authorized && (
-        <button type="button" onClick={this.handleConnectButtonClick}>
-          Connect
-        </button>
-      )
-    );
     return (
       <div>
         <div className="control">
-          <div>
-            <div className="form-group">
-              <label>Ендпоинт (ws[s]://...)</label>
-              <input
-                value={this.state.storageUrl}
-                onChange={e => this.handleInputChange(e, "storageUrl")}
-              />
-            </div>
-            <div className="form-group">
-              <label>Юзер</label>
-              <input
-                value={this.state.userId}
-                onChange={e => this.handleInputChange(e, "userId")}
-              />
-            </div>
-          </div>
+          <>
+            <Input
+              label="Ендпоинт (ws[s]://...)"
+              value={this.state.storageUrl}
+              changeHangler={e => this.handleInputChange(e, "storageUrl")}
+            />
+            <Input
+              label="Юзер"
+              value={this.state.userId}
+              changeHangler={e => this.handleInputChange(e, "userId")}
+            />
+          </>
 
           {authorized && (
-            <div>
-              <div className="form-group">
-                <label>Брокер</label>
-                <input
-                  value={this.state.broker}
-                  onChange={e => this.handleInputChange(e, "broker")}
-                />
-              </div>
-              <div className="form-group">
-                <label>Аккаунт</label>
-                <input
-                  value={this.state.account}
-                  onChange={e => this.handleInputChange(e, "account")}
-                />
-              </div>
-            </div>
+            <>
+              <Input
+                label="Брокер"
+                value={this.state.broker}
+                changeHangler={e => this.handleInputChange(e, "broker")}
+              />
+              <Input
+                label="Аккаунт"
+                value={this.state.account}
+                changeHangler={e => this.handleInputChange(e, "account")}
+              />
+            </>
           )}
 
-          {button}
+          {loading ? (
+            <span>Loading</span>
+          ) : (
+            !authorized && (
+              <button type="button" onClick={this.handleConnectButtonClick}>
+                Connect
+              </button>
+            )
+          )}
         </div>
 
         {authorized && (
           <div>
             <button onClick={this.getInstruments}>Get Instruments</button>
-            <button onClick={this.pingPong}>Ping-Pong</button>
-            <Stress
-              enabled={stressEnabled}
-              inputChange={this.handleInputChange}
-              perSecond={perSecond}
-              seconds={seconds}
-            />
+            {instruments.length > 0 ? (
+              <Stress
+                enabled={stressEnabled}
+                inputChange={this.handleInputChange}
+                perSecond={perSecond}
+                seconds={seconds}
+                start={this.handleStressTest}
+              />
+            ) : null}
           </div>
         )}
-        <div className="instruments">
-          {instruments.map((el, i) => (
-            <button
-              className={subscriptions[el.sym] && "active"}
-              key={i}
-              onClick={() => this.handleInstrumentClick({ sym: el.sym })}
-            >
-              {el.sym}
-            </button>
-          ))}
-        </div>
+
+        <Instruments handleClick={this.handleInstrumentClick} />
 
         <hr />
         {authorized && (
@@ -241,35 +173,22 @@ class App extends React.Component {
   }
 }
 
-var randomProperty = function(obj) {
-  var keys = Object.keys(obj);
-  return keys[(keys.length * Math.random()) << 0];
-};
-
-function stringToHash(str) {
-  var hash = 5381,
-    i = str.length;
-
-  while (i) {
-    hash = (hash * 33) ^ str.charCodeAt(--i);
-  }
-
-  return hash >>> 0;
-}
-
 const mapStateToProps = state => {
   return {
     loading: state.socket.loading,
     authorized: state.socket.authorized,
-    instruments: state.socket.instruments,
-    orders: state.socket.orders,
-    subscriptions: state.socket.subscriptions
+    instruments: state.market.instruments,
+    orders: state.market.orders,
+    subscriptions: state.market.subscriptions
   };
 };
 
 const mapDispatchToProps = dispatch => {
   return {
-    initWebSocket: url => dispatch(initSocket(url))
+    initWebSocket: url => dispatch(initSocket(url)),
+    fetchInstruments: (broker, account) =>
+      dispatch(fetchInstruments(broker, account)),
+    setInstrument: sym => dispatch(setInstrument(sym))
   };
 };
 

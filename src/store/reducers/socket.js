@@ -3,10 +3,8 @@ import * as actionTypes from "../actions/actionTypes";
 const initialState = {
   authorized: false,
   loading: false,
-  error: null,
-  instruments: [],
-  orders: {},
-  subscriptions: {}
+  socket: null,
+  error: null
 };
 
 export default (state = initialState, action) => {
@@ -21,7 +19,8 @@ export default (state = initialState, action) => {
       return {
         ...state,
         loading: false,
-        authorized: true
+        authorized: true,
+        socket: action.socket
       };
     }
     case actionTypes.SOCKET_CONNECT_ERROR: {
@@ -29,18 +28,6 @@ export default (state = initialState, action) => {
         ...state,
         loading: false,
         error: action.error
-      };
-    }
-    case actionTypes.SET_INSTRUMENTS: {
-      return {
-        ...state,
-        instruments: action.instruments
-      };
-    }
-    case actionTypes.SET_ORDERS: {
-      return {
-        ...state,
-        orders: action.orders
       };
     }
     default: {
