@@ -57,101 +57,6 @@ class App extends React.Component {
     }
   }
 
-  // initWebSocket = () => {
-  //   let { socket } = this.state;
-
-  //   socket.onopen = () => {
-  //     this.setState({
-  //       authorized: true
-  //     });
-  //   };
-
-  //   socket.onmessage = async message => {
-  //     let data;
-
-  //     let { instruments, subscriptions, orders } = this.state;
-
-  //     if (message.data === "1") return console.timeEnd("Ping-Pong");
-
-  //     if (typeof message.data !== "string") {
-  //       let pbf = new Pbf(message.data);
-
-  //       data = Quote.read(pbf);
-
-  //       const { instrumentId, bid, ask, time } = data;
-
-  //       let sub = subscriptions[instrumentId];
-
-  //       if (sub) {
-  //         sub.instrumentId = instrumentId;
-  //         sub.bid = bid;
-  //         sub.ask = ask;
-  //         sub.time = time;
-  //       } else {
-  //         orders[instrumentId] = {
-  //           instrumentId,
-  //           bid,
-  //           ask,
-  //           time
-  //         };
-  //       }
-  //     } else {
-  //       data = JSON.parse(message.data);
-  //     }
-
-  //     const { type } = data;
-
-  //     let newSubscriptions = null;
-
-  //     switch (type) {
-  //       case 7: {
-  //         instruments = data.instruments;
-  //         break;
-  //       }
-  //       case 10: {
-  //         newSubscriptions = {};
-
-  //         data.s.sub[0].sym.forEach(el => {
-  //           delete orders[el];
-
-  //           if (!subscriptions[el]) {
-  //             newSubscriptions[el] = {
-  //               instrumentId: el
-  //             };
-  //           } else {
-  //             newSubscriptions[el] = subscriptions[el];
-  //           }
-  //         });
-
-  //         break;
-  //       }
-  //       default: {
-  //         break;
-  //       }
-  //     }
-
-  //     this.setState(prevState => ({
-  //       ...prevState,
-  //       loading: false,
-  //       instruments,
-  //       subscriptions: newSubscriptions || subscriptions,
-  //       orders
-  //     }));
-  //   };
-
-  //   socket.onerror = error => {
-  //     console.log(error);
-  //   };
-
-  //   socket.onclose = () => {
-  //     this.setState({
-  //       authorized: false,
-  //       socket: null,
-  //       subscriptions: {}
-  //     });
-  //   };
-  // };
-
   request = body => {
     const { socket } = this.state;
     socket.send(body);
@@ -200,7 +105,7 @@ class App extends React.Component {
   };
 
   handleStressTest = async () => {
-    const { perSecond, seconds, instruments } = this.state;
+    const { perSecond, seconds, instruments } = this.props;
 
     let times = 0;
 
@@ -224,22 +129,27 @@ class App extends React.Component {
 
   render() {
     let {
-      instruments,
-      subscriptions,
-      orders,
       perSecond,
       seconds,
       stressEnabled
     } = this.state;
 
-    let { authorized, loading } = this.props;
+    let {
+      authorized,
+      loading,
+      instruments,
+      subscriptions,
+      orders
+    } = this.props;
 
     const button = loading ? (
       <span>Loading</span>
-    ) : !authorized && (
-      <button type="button" onClick={this.handleConnectButtonClick}>
-        Connect
-      </button>
+    ) : (
+      !authorized && (
+        <button type="button" onClick={this.handleConnectButtonClick}>
+          Connect
+        </button>
+      )
     );
     return (
       <div>
@@ -350,7 +260,10 @@ function stringToHash(str) {
 const mapStateToProps = state => {
   return {
     loading: state.socket.loading,
-    authorized: state.socket.authorized
+    authorized: state.socket.authorized,
+    instruments: state.socket.instruments,
+    orders: state.socket.orders,
+    subscriptions: state.socket.subscriptions
   };
 };
 

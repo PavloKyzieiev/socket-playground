@@ -1,10 +1,15 @@
+import Pbf from "pbf";
+import Quote from "../../proto/awesome";
+import { deepClone } from "../../utils/object";
+
 import * as actionTypes from "./actionTypes";
 
 export function initSocket(socketUrl) {
-  return dispatch => {
+  return (dispatch, getState) => {
     dispatch(initSocketStart());
 
     let socket = new WebSocket(socketUrl);
+
     socket.binaryType = "arraybuffer";
 
     socket.onerror = error => {
@@ -14,6 +19,100 @@ export function initSocket(socketUrl) {
     socket.onopen = () => {
       dispatch(initSocketSuccess());
     };
+
+    socket.onmessage = message => {
+      let data;
+
+      let { subscriptions, orders } = getState().socket;
+
+      let ordersObj = null;
+      let newSubscriptions = null;
+      let subscriptionsObj = null;
+
+      if (typeof message.data !== "string") {
+        let pbf = new Pbf(message.data);
+
+        data = Quote.read(pbf);
+
+        const { instrumentId, bid, ask, time } = data;
+
+        subscriptionsObj = deepClone(subscriptions);
+        let sub = subscriptionsObj[instrumentId];
+
+        if (sub) {
+          sub.instrumentId = instrumentId;
+          sub.bid = bid;
+          sub.ask = ask;
+          sub.time = time;
+        } else {
+          ordersObj = deepClone(orders);
+          ordersObj[instrumentId] = {
+            instrumentId,
+            bid,
+            ask,
+            time
+          };
+        }
+      } else {
+        data = JSON.parse(message.data);
+      }
+
+      const { type } = data;
+
+      switch (type) {
+        case 7: {
+          return dispatch(setInstruments(data.instruments));
+        }
+        case 10: {
+          newSubscriptions = {};
+
+          data.s.sub[0].sym.forEach(el => {
+            if (!ordersObj) ordersObj = deepClone(orders);
+            
+            delete ordersObj[el];
+
+            if (!subscriptions[el]) {
+              newSubscriptions[el] = {
+                instrumentId: el
+              };
+            } else {
+              if (!subscriptionsObj)
+                subscriptionsObj = deepClone(subscriptions);
+
+              newSubscriptions[el] = subscriptionsObj[el];
+            }
+          });
+          break;
+        }
+        default: {
+          break;
+        }
+      }
+
+      newSubscriptions && dispatch(setSubscriptions(newSubscriptions));
+      ordersObj && dispatch(setOrders(ordersObj));
+    };
+  };
+}
+
+function setInstruments(instruments) {
+  return {
+    type: actionTypes.SET_INSTRUMENTS,
+    instruments
+  };
+}
+
+function setOrders(orders) {
+  return {
+    type: actionTypes.SET_ORDERS,
+    orders
+  };
+}
+
+function setSubscriptions(subscriptions) {
+  return {
+    type: actionTypes.SET_SUBSCRIPTIONS,
+    subscriptions
   };
 }
 
