@@ -1,19 +1,16 @@
 import React from "react";
-import Pbf from "pbf";
-import { Quote } from "./proto/awesome";
 import Order from "./components/Order/Order";
 import Stress from "./components/Stress/Stress";
+import Instruments from "./components/Instruments/Instruments";
+import Input from "./components/UI/Input/Input";
+
+import { connect } from "react-redux";
+import { initSocket } from "./store/actions/socket";
+import { fetchInstruments, setInstrument } from "./store/actions/market";
 
 window.limits = {
   perSecond: 200,
   seconds: 60
-};
-
-const defaultQuote = {
-  instrumentId: 0,
-  bid: 0,
-  ask: 0,
-  time: 0
 };
 
 class App extends React.Component {
@@ -24,12 +21,6 @@ class App extends React.Component {
     account: localStorage.getItem("account") || "",
     perSecond: localStorage.getItem("perSecond") || 10,
     seconds: localStorage.getItem("seconds") || 1,
-    authorized: false,
-    loading: false,
-    socket: null,
-    instruments: [],
-    subscriptions: {},
-    orders: {},
     stressEnabled: false
   };
 
@@ -46,124 +37,8 @@ class App extends React.Component {
   };
 
   handleConnectButtonClick = () => {
-    const { authorized, storageUrl, userId } = this.state;
-    let { socket } = this.state;
-
-    if (!authorized) {
-      try {
-        socket = new WebSocket(storageUrl.split("?")[0] + "?user=" + userId);
-        socket.binaryType = "arraybuffer";
-      } catch (e) {
-        throw new Error(e);
-      }
-
-      this.setState({ socket, loading: true });
-    } else if (socket && authorized) {
-      this.setState({ instruments: [], socket: null });
-
-      socket.close();
-    }
-  };
-
-  componentDidUpdate(prevProps, prevState) {
-    if (!prevState.socket && this.state.socket) {
-      this.initWebSocket();
-    }
-  }
-
-  initWebSocket = () => {
-    let { socket } = this.state;
-
-    socket.onopen = () => {
-      this.setState({
-        authorized: true
-      });
-    };
-
-    socket.onmessage = async message => {
-      let data;
-
-      let { instruments, subscriptions, orders } = this.state;
-
-      if (message.data === "1") return console.timeEnd("Ping-Pong");
-
-      if (typeof message.data !== "string") {
-        let pbf = new Pbf(message.data);
-
-        data = Quote.read(pbf);
-
-        const { instrumentId, bid, ask, time } = data;
-
-        let sub = subscriptions[instrumentId];
-
-        if (sub) {
-          sub.instrumentId = instrumentId;
-          sub.bid = bid;
-          sub.ask = ask;
-          sub.time = time;
-        } else {
-          orders[instrumentId] = {
-            instrumentId,
-            bid,
-            ask,
-            time
-          };
-        }
-      } else {
-        data = JSON.parse(message.data);
-      }
-
-      const { type } = data;
-
-      let newSubscriptions = null;
-
-      switch (type) {
-        case 7: {
-          instruments = data.instruments;
-          break;
-        }
-        case 10: {
-          newSubscriptions = {};
-
-          data.s.sub[0].sym.forEach(el => {
-            delete orders[el];
-
-            if (!subscriptions[el]) {
-              newSubscriptions[el] = {
-                instrumentId: el
-              };
-            } else {
-              newSubscriptions[el] = subscriptions[el];
-            }
-          });
-
-          break;
-        }
-        default: {
-          break;
-        }
-      }
-
-      this.setState(prevState => ({
-        ...prevState,
-        loading: false,
-        instruments,
-        subscriptions: newSubscriptions || subscriptions,
-        orders
-      }));
-    };
-
-    socket.onerror = error => {
-      console.log(error);
-    };
-
-    socket.onclose = () => {
-      this.setState({
-        authorized: false,
-        socket: null,
-        subscriptions: {}
-      });
-    };
+    const { storageUrl, userId } = this.state;
+    this.props.initWebSocket(storageUrl.split("?")[0] + "?user=" + userId);
   };
 
   request = body => {
@@ -171,57 +46,26 @@ class App extends React.Component {
     socket.send(body);
   };
 
-  handleInstrumentClick = ({ sym }) => {
-    let { broker, account, subscriptions } = this.state;
-
-    let subsObj = { ...subscriptions };
-    let syms = [],
-      hashCode;
-
-    if (subsObj[sym]) {
-      delete subsObj[sym];
-    } else {
-      subsObj[sym] = { ...defaultQuote };
-    }
-
-    Object.keys(subsObj).forEach(el => syms.push(el));
-
-    this.setState(prevState => ({ ...prevState, subscriptions: subsObj }));
-
-    hashCode = stringToHash(broker + "&" + account + "&" + syms);
-
-    this.request(
-      JSON.stringify({
-        type: 1,
-        s: {
-          sub: [{ rec: { b: broker, a: account }, sym: syms }],
-          hash: hashCode
-        }
-      })
-    );
+  handleInstrumentClick = sym => {
+    const { broker, account } = this.state;
+    this.props.setInstrument(sym, broker, account);
   };
 
   getInstruments = () => {
-    const { broker, account, socket } = this.state;
-
-    socket.send(JSON.stringify({ type: 2, rec: { b: broker, a: account } }));
-  };
-
-  pingPong = () => {
-    const { socket } = this.state;
-    console.time("Ping-Pong");
-    socket.send("0");
+    const { broker, account } = this.state;
+    this.props.fetchInstruments(broker, account);
   };
 
   handleStressTest = async () => {
-    const { perSecond, seconds, instruments } = this.state;
+    const { seconds, perSecond } = this.state;
+    const { instruments } = this.props;
 
     this.setState({ stressEnabled: true });
 
     const stress = sym => {
       return new Promise((res, rej) => {
-        this.handleInstrumentClick({ sym });
-        setTimeout(res, 1000 / +perSecond);
+        this.handleInstrumentClick(sym);
+        setTimeout(res, Math.floor(1000 / +perSecond));
       });
     };
 
@@ -236,70 +80,62 @@ class App extends React.Component {
   };
 
   render() {
-    var {
+    let { perSecond, seconds, stressEnabled } = this.state;
+
+    let {
       authorized,
       loading,
       instruments,
       subscriptions,
-      orders,
-      perSecond,
-      seconds,
-      stressEnabled
-    } = this.state;
-    const button = loading ? (
-      <span>Loading</span>
-    ) : (
-      <button type="button" onClick={this.handleConnectButtonClick}>
-        {authorized ? "Disconnect" : "Connect"}
-      </button>
-    );
+      orders
+    } = this.props;
+
     return (
       <div>
         <div className="control">
-          <div>
-            <div className="form-group">
-              <label>Ендпоинт (ws[s]://...)</label>
-              <input
-                value={this.state.storageUrl}
-                onChange={e => this.handleInputChange(e, "storageUrl")}
-              />
-            </div>
-            <div className="form-group">
-              <label>Юзер</label>
-              <input
-                value={this.state.userId}
-                onChange={e => this.handleInputChange(e, "userId")}
-              />
-            </div>
-          </div>
+          <>
+            <Input
+              label="Ендпоинт (ws[s]://...)"
+              value={this.state.storageUrl}
+              changeHangler={e => this.handleInputChange(e, "storageUrl")}
+            />
+            <Input
+              label="Юзер"
+              value={this.state.userId}
+              changeHangler={e => this.handleInputChange(e, "userId")}
+            />
+          </>
 
           {authorized && (
-            <div>
-              <div className="form-group">
-                <label>Брокер</label>
-                <input
-                  value={this.state.broker}
-                  onChange={e => this.handleInputChange(e, "broker")}
-                />
-              </div>
-              <div className="form-group">
-                <label>Аккаунт</label>
-                <input
-                  value={this.state.account}
-                  onChange={e => this.handleInputChange(e, "account")}
-                />
-              </div>
-            </div>
+            <>
+              <Input
+                label="Брокер"
+                value={this.state.broker}
+                changeHangler={e => this.handleInputChange(e, "broker")}
+              />
+              <Input
+                label="Аккаунт"
+                value={this.state.account}
+                changeHangler={e => this.handleInputChange(e, "account")}
+              />
+            </>
           )}
 
-          {button}
+          {loading ? (
+            <span>Loading</span>
+          ) : (
+            !authorized && (
+              <button type="button" onClick={this.handleConnectButtonClick}>
+                Connect
+              </button>
+            )
+          )}
         </div>
 
         {authorized && (
           <div>
             <button onClick={this.getInstruments}>Get Instruments</button>
-            <button onClick={this.pingPong}>Ping-Pong</button>
-            {instruments.length ? (
+            {instruments.length > 0 ? (
               <Stress
                 enabled={stressEnabled}
                 inputChange={this.handleInputChange}
@@ -310,17 +146,8 @@ class App extends React.Component {
             ) : null}
           </div>
         )}
-        <div className="instruments">
-          {instruments.map((el, i) => (
-            <button
-              className={subscriptions[el.sym] && "active"}
-              key={i}
-              onClick={() => this.handleInstrumentClick({ sym: el.sym })}
-            >
-              {el.sym}
-            </button>
-          ))}
-        </div>
+
+        <Instruments handleClick={this.handleInstrumentClick} />
 
         <hr />
         {authorized && (
@@ -346,15 +173,26 @@ class App extends React.Component {
   }
 }
 
-function stringToHash(str) {
-  var hash = 5381,
-    i = str.length;
+const mapStateToProps = state => {
+  return {
+    loading: state.socket.loading,
+    authorized: state.socket.authorized,
+    instruments: state.market.instruments,
+    orders: state.market.orders,
+    subscriptions: state.market.subscriptions
+  };
+};
 
-  while (i) {
-    hash = (hash * 33) ^ str.charCodeAt(--i);
-  }
+const mapDispatchToProps = dispatch => {
+  return {
+    initWebSocket: url => dispatch(initSocket(url)),
+    fetchInstruments: (broker, account) =>
+      dispatch(fetchInstruments(broker, account)),
+    setInstrument: sym => dispatch(setInstrument(sym))
+  };
+};
 
-  return hash >>> 0;
-}
-
-export default App;
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(App);
