@@ -186,7 +186,7 @@ class App extends React.Component {
 
     Object.keys(subsObj).forEach(el => syms.push(el));
 
-    this.setState({ subscriptions: subsObj });
+    this.setState(prevState => ({ ...prevState, subscriptions: subsObj }));
 
     hashCode = stringToHash(broker + "&" + account + "&" + syms);
 
@@ -221,13 +221,14 @@ class App extends React.Component {
     const stress = sym => {
       return new Promise((res, rej) => {
         this.handleInstrumentClick({ sym });
-        setTimeout(res, Math.floor(1000 / +perSecond));
+        setTimeout(res, 1000 / +perSecond);
       });
     };
 
     for (let i = 0; i < +seconds; i++) {
       for (let j = 0; j < +perSecond; j++) {
-        await stress(randomProperty(instruments));
+        let randIndex = Math.floor(Math.random() * instruments.length);
+        await stress(instruments[randIndex].sym);
       }
     }
 
@@ -298,13 +299,15 @@ class App extends React.Component {
           <div>
             <button onClick={this.getInstruments}>Get Instruments</button>
             <button onClick={this.pingPong}>Ping-Pong</button>
-            <Stress
-              enabled={stressEnabled}
-              inputChange={this.handleInputChange}
-              perSecond={perSecond}
-              seconds={seconds}
-              start={this.handleStressTest}
-            />
+            {instruments.length ? (
+              <Stress
+                enabled={stressEnabled}
+                inputChange={this.handleInputChange}
+                perSecond={perSecond}
+                seconds={seconds}
+                start={this.handleStressTest}
+              />
+            ) : null}
           </div>
         )}
         <div className="instruments">
@@ -342,11 +345,6 @@ class App extends React.Component {
     );
   }
 }
-
-var randomProperty = function(obj) {
-  var keys = Object.keys(obj);
-  return keys[(keys.length * Math.random()) << 0];
-};
 
 function stringToHash(str) {
   var hash = 5381,
