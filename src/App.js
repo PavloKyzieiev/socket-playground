@@ -82,13 +82,7 @@ class App extends React.Component {
   render() {
     let { perSecond, seconds, stressEnabled } = this.state;
 
-    let {
-      authorized,
-      loading,
-      instruments,
-      subscriptions,
-      orders
-    } = this.props;
+    let { authorized, loading, instruments, subscriptions } = this.props;
 
     return (
       <div>
@@ -107,7 +101,7 @@ class App extends React.Component {
           </>
 
           {authorized && (
-            <>
+            <div>
               <Input
                 label="Брокер"
                 value={this.state.broker}
@@ -118,7 +112,7 @@ class App extends React.Component {
                 value={this.state.account}
                 changeHangler={e => this.handleInputChange(e, "account")}
               />
-            </>
+            </div>
           )}
 
           {loading ? (
@@ -159,12 +153,6 @@ class App extends React.Component {
                   <Order key={key} sub={subscriptions[key]} />
                 ))}
               </div>
-              <div className="tr_item orders">
-                <h2>Orders:</h2>
-                {Object.keys(orders).map(key => (
-                  <Order key={key} sub={orders[key]} />
-                ))}
-              </div>
             </div>
           </div>
         )}
@@ -178,7 +166,6 @@ const mapStateToProps = state => {
     loading: state.socket.loading,
     authorized: state.socket.authorized,
     instruments: state.market.instruments,
-    orders: state.market.orders,
     subscriptions: state.market.subscriptions
   };
 };
@@ -188,7 +175,8 @@ const mapDispatchToProps = dispatch => {
     initWebSocket: url => dispatch(initSocket(url)),
     fetchInstruments: (broker, account) =>
       dispatch(fetchInstruments(broker, account)),
-    setInstrument: sym => dispatch(setInstrument(sym))
+    setInstrument: (sym, broker, account) =>
+      dispatch(setInstrument(sym, broker, account))
   };
 };
 

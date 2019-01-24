@@ -3,7 +3,6 @@ import * as actionTypes from "../actions/actionTypes";
 const initialState = {
   loading: false,
   instruments: [],
-  orders: {},
   subscriptions: {}
 };
 
@@ -26,12 +25,6 @@ export default (state = initialState, action) => {
         ...state,
         instruments: action.instruments,
         loading: false
-      };
-    }
-    case actionTypes.SET_ORDERS: {
-      return {
-        ...state,
-        orders: action.orders
       };
     }
     default: {

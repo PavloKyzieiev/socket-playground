@@ -45,7 +45,8 @@ export function setInstrument(sym, broker, account) {
       JSON.stringify({
         type: 1,
         s: {
-          sub: [{ rec: { b: broker, a: account }, sym: syms }],
+          rec: { b: broker, a: account },
+          sym: syms,
           hash: hashCode
         }
       })
@@ -63,13 +64,6 @@ export function fetchInstrumentsSuccess(instruments) {
   return {
     type: actionTypes.FETCH_INSTRUMENTS_SUCCESS,
     instruments
-  };
-}
-
-export function setOrders(orders) {
-  return {
-    type: actionTypes.SET_ORDERS,
-    orders
   };
 }
 
